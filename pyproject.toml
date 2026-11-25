@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "code-navigator"
+version = "0.4.0"
+description = "Index a microservice codebase into a navigable tree, a vector store and a service dependency graph - query it with or without an LLM, from the CLI, Python or any MCP client."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+keywords = ["microservices", "code search", "rag", "mcp", "dependency graph", "code intelligence",
+            "vector database", "qdrant", "pgvector", "lancedb", "chromadb"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Software Development :: Documentation",
+    "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = [
+    "PyYAML>=6.0",
+    "numpy>=1.24",
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+parsers = ["tree-sitter-language-pack>=0.7"]          # accurate parsing for Java, Go, JS/TS, C#, ...
+chroma = ["chromadb>=0.5"]                            # CODENAV_VECTOR_BACKEND=chroma
+qdrant = ["qdrant-client>=1.7"]                       # CODENAV_VECTOR_BACKEND=qdrant
+lancedb = ["lancedb>=0.5"]                            # CODENAV_VECTOR_BACKEND=lancedb
+pgvector = ["psycopg[binary]>=3.1"]                   # CODENAV_VECTOR_BACKEND=pgvector
+local-embeddings = ["sentence-transformers>=3.0"]     # CODENAV_EMBED_PROVIDER=sentence-transformers
+all = ["tree-sitter-language-pack>=0.7", "chromadb>=0.5"]
+dev = ["pytest>=7"]
+
+[project.scripts]
+code-navigator = "code_navigator.cli:main"
+cnav = "code_navigator.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["code_navigator*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
