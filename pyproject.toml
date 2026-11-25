@@ -7,13 +7,13 @@ name = "code-navigator"
 version = "0.4.0"
 description = "Index a microservice codebase into a navigable tree, a vector store and a service dependency graph - query it with or without an LLM, from the CLI, Python or any MCP client."
 readme = "README.md"
-license = { text = "MIT" }
+license = { text = "Apache-2.0" }
 requires-python = ">=3.9"
 keywords = ["microservices", "code search", "rag", "mcp", "dependency graph", "code intelligence",
             "vector database", "qdrant", "pgvector", "lancedb", "chromadb"]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
     "Topic :: Software Development :: Documentation",
     "Topic :: Software Development :: Quality Assurance",
 ]
