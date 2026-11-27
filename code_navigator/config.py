@@ -153,8 +153,9 @@ class Settings:
             embed_key = src.get("LLM_API_KEY")
 
         vendor_key = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY"}.get(llm_provider)
-        llm_model = src.get("LLM_MODEL", llm_def["model"])
         llm_on = llm_provider != "none"
+        # a model name left over from another provider must not leak into "none"/"hash"
+        llm_model = src.get("LLM_MODEL", llm_def["model"]) if llm_on else "none"
 
         return cls(
             cache_dir=Path(src.get("CACHE_DIR", str(CACHE_DIR))).expanduser(),
@@ -169,7 +170,7 @@ class Settings:
             llm_max_tokens=src.int("LLM_MAX_TOKENS", 1500),
             llm_timeout=src.int("LLM_TIMEOUT", 240),
             embed_provider=embed_provider,
-            embed_model=src.get("EMBED_MODEL", emb_def["model"]),
+            embed_model=src.get("EMBED_MODEL", emb_def["model"]) if embed_provider != "hash" else "hash-512",
             embed_base_url=(embed_base or emb_def["base_url"]).rstrip("/"),
             embed_api_key=embed_key or (src.values.get("OPENAI_API_KEY") if embed_provider == "openai" else None),
             embed_batch_size=src.int("EMBED_BATCH_SIZE", 32),

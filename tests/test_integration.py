@@ -105,3 +105,34 @@ def test_mcp_stdio_loop(sample_index, sample_repo):
     assert [r.get("id") for r in replies] == [1, None, 2]
     assert replies[0]["result"]["protocolVersion"] == "2024-11-05"
     assert replies[1]["error"]["code"] == -32700
+
+
+def test_leftover_model_names_do_not_leak_into_offline_providers(monkeypatch, tmp_path):
+    monkeypatch.setattr(cfg, "USER_ENV_FILE", tmp_path / "missing.env")
+    monkeypatch.setenv("CODENAV_EMBED_PROVIDER", "hash")
+    monkeypatch.setenv("CODENAV_EMBED_MODEL", "nomic-embed-text-v1.5")
+    monkeypatch.setenv("CODENAV_LLM_PROVIDER", "none")
+    monkeypatch.setenv("CODENAV_LLM_MODEL", "qwen2.5-coder-7b-instruct")
+    s = cfg.Settings.load(tmp_path)
+    assert (s.embed_model, s.llm_model) == ("hash-512", "none")
+
+
+def test_unreachable_embedding_server_gives_a_clear_error():
+    import pytest
+    from code_navigator.llm.embeddings import EmbeddingError, OpenAIEmbedder
+    emb = OpenAIEmbedder("nomic-embed-text-v1.5", "http://127.0.0.1:9/v1", None)
+    with pytest.raises(EmbeddingError, match="cannot reach the openai embedding server at http://127.0.0.1:9/v1"):
+        emb.embed_query("hello")
+
+
+def test_search_falls_back_to_vectorless_when_embeddings_are_down(engine, monkeypatch):
+    from code_navigator.llm.embeddings import EmbeddingError
+
+    def down(*a, **k):
+        raise EmbeddingError("cannot reach the openai embedding server")
+
+    monkeypatch.setattr(engine.embedder, "embed_query", down)
+    res = engine.search("What does ChargeWithRetry do?", top_k=3)
+    assert res["mode"] == "vectorless" and res["hits"]
+    assert any("embedding model unavailable" in n for n in res["notes"])
+    assert any(h["name"] == "ProviderGateway.ChargeWithRetry" for h in res["hits"])

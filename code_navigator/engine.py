@@ -14,6 +14,7 @@ from .generation.answer_generator import AnswerGenerator
 from .indexing.tree_index import TreeIndex
 from .indexing.vector_index import open_vector_store
 from .llm import get_embedder, get_llm
+from .llm.embeddings import EmbeddingError
 from .models import Dependency, Hit, Service
 from .retrieval.hybrid_retriever import MODES, HybridRetriever
 from .retrieval.tree_navigator import TreeNavigator
@@ -96,7 +97,17 @@ class Navigator:
         }
 
     def _retrieve(self, question: str, mode: str, top_k: int | None, expand: int | None):
-        result = self.retriever.retrieve(question, mode=mode, top_k=top_k or self.settings.top_k)
+        k = top_k or self.settings.top_k
+        try:
+            result = self.retriever.retrieve(question, mode=mode, top_k=k)
+        except EmbeddingError as exc:
+            if mode == "vectorless":
+                raise
+            # the embedding model is down: still answer, from the summary tree and exact symbol names
+            log.warning("%s - falling back to vectorless retrieval", exc)
+            result = self.retriever.retrieve(question, mode="vectorless", top_k=k)
+            result.notes.append(f"embedding model unavailable ({self.embedder.describe()}); "
+                                "used tree navigation and symbol lookup only")
         n = self.settings.call_expansion if expand is None else expand
         if n > 0 and self.callgraph:
             self._expand_with_calls(result, n)

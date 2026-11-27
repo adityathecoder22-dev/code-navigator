@@ -13,6 +13,10 @@ from ..utils import log, tokenize
 MAX_EMBED_CHARS = 6000
 
 
+class EmbeddingError(RuntimeError):
+    """The embedding model could not be used (server down, wrong URL, model missing)."""
+
+
 class Embedder(ABC):
     provider = "base"
 
@@ -30,18 +34,28 @@ class Embedder(ABC):
     def _query_prefix(self) -> str:
         return "search_query: " if "nomic" in self.model else ""
 
+    def _call(self, texts: list[str]) -> list[list[float]]:
+        try:
+            return self._embed(texts)
+        except requests.RequestException as exc:
+            where = getattr(self, "base_url", "") or "the configured URL"
+            reason = "connection refused" if isinstance(exc, requests.ConnectionError) else str(exc)[:200]
+            raise EmbeddingError(
+                f"cannot reach the {self.provider} embedding server at {where} ({reason}). Start it, or set "
+                f"CODENAV_EMBED_PROVIDER=hash to index without an embedding model.") from exc
+
     def embed_documents(self, texts: list[str], progress=None) -> list[list[float]]:
         out: list[list[float]] = []
         prefix = self._doc_prefix()
         for i in range(0, len(texts), self.batch_size):
             batch = [prefix + t[:MAX_EMBED_CHARS] for t in texts[i : i + self.batch_size]]
-            out.extend(self._embed(batch))
+            out.extend(self._call(batch))
             if progress:
                 progress(min(i + self.batch_size, len(texts)), len(texts))
         return out
 
     def embed_query(self, text: str) -> list[float]:
-        return self._embed([self._query_prefix() + text[:MAX_EMBED_CHARS]])[0]
+        return self._call([self._query_prefix() + text[:MAX_EMBED_CHARS]])[0]
 
     def describe(self) -> str:
         return f"{self.provider}:{self.model}"
@@ -68,7 +82,7 @@ class OllamaEmbedder(Embedder):
                 vectors.append(r.json()["embedding"])
             return vectors
         if resp.status_code >= 400:
-            raise RuntimeError(f"Ollama embed failed ({resp.status_code}): {resp.text[:300]}. "
+            raise EmbeddingError(f"Ollama embed failed ({resp.status_code}): {resp.text[:300]}. "
                                f"Did you run `ollama pull {self.model}`?")
         return resp.json()["embeddings"]
 
@@ -89,7 +103,7 @@ class OpenAIEmbedder(Embedder):
         resp = requests.post(f"{self.base_url}/embeddings", headers=headers,
                              json={"model": self.model, "input": texts}, timeout=self.timeout)
         if resp.status_code >= 400:
-            raise RuntimeError(f"Embedding API failed ({resp.status_code}): {resp.text[:300]}")
+            raise EmbeddingError(f"Embedding API failed ({resp.status_code}): {resp.text[:300]}")
         data = sorted(resp.json()["data"], key=lambda d: d["index"])
         return [d["embedding"] for d in data]
 
